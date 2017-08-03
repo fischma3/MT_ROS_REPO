@@ -1,0 +1,16 @@
+<launch>
+    <!-- Machine settings. See http://www.ros.org/wiki/roslaunch/XML/machine -->
+    <machine name="local_alt" address="localhost" default="true" />
+    
+    <!-- phidgets high speed encoders -->
+    <node pkg="odometry_server" type="high_speed_encoder" name="encoder" respawn="true">
+    <!-- param name="serial" value="485872" -->
+    </node>
+    
+    <!-- odometry -->
+    <node pkg="odometry_server" type="odometry" name="odometry" respawn="true" output="screen">
+    	<!-- calculation frequency -->
+        <param name="frequency" value="125" />
+    </node>
+</launch>
+
