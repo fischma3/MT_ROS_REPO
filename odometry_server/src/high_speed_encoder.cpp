@@ -218,7 +218,7 @@ int main(int argc, char* argv[])
         const int buffer_length = 100;
 
         CPhidgetEncoder_setEnabled(phid,1,PTRUE);
-        CPhidgetEncoder_setEnabled(phid,2,PTRUE);
+        CPhidgetEncoder_setEnabled(phid,0,PTRUE);
 
         std::string topic_name = topic_path + name;
         /*if (serial_number > -1) {

@@ -12,5 +12,12 @@
     	<!-- calculation frequency -->
         <param name="frequency" value="125" />
     </node>
+
+    <node pkg="px4flow_node" type="px4flow_node" name="px4flow" respawn="true" output="screen">
+    	<!-- serial_port -->
+        <param name="serial_port" value="/dev/ttyACM3" />
+        <!-- baudrate-->
+        <param name="baudrate" value="115200" />
+    </node>
 </launch>
 

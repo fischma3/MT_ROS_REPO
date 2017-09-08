@@ -27,8 +27,11 @@ target_link_libraries(high_speed_encoder phidget21)
 rosbuild_add_executable(odometry src/odometry.cpp)
 target_link_libraries(odometry phidget21)
 
-rosbuild_add_executable(odometry_save src/odometry_save.cpp)
-target_link_libraries(odometry_save phidget21)
+rosbuild_add_executable(odometry_model src/odometry_model.cpp)
+target_link_libraries(odometry_model phidget21)
+
+rosbuild_add_executable(flow_odometry src/flow_odometry.cpp)
+target_link_libraries(flow_odometry phidget21)
 
 #common commands for building c++ executables and libraries
 #rosbuild_add_library(${PROJECT_NAME} src/example.cpp)

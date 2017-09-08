@@ -52,6 +52,57 @@ int encoder_direction_right = 1;
 
 // distance between the wheel centres
 double wheelbase_mm = 585;
+double wheelbase = 585;
+
+// Parameters
+double speed = 0.5;
+double load = 0;
+double pressure = 2.25;
+double radius = 1.6;
+
+// scale the parameters to the norm
+double speed_norm = 1.5;
+double scale_S = (speed-speed_norm)/1;
+
+double load_norm = 60;
+double scale_L = (load-load_norm)/30;
+
+double pressure_norm = 2;
+double scale_P = (pressure-pressure_norm)/0.125;
+
+double radius_norm = 1.6;
+double scale_R = (radius-radius_norm)/1.6;
+
+// Model-parameters for encoder_counts_per_mm
+double b1 	= 0.821804512652212;
+double b2 	= -0.0383404381621055;
+double b3 	= -0.465613814889989;
+double b4 	= 0.224057530496622;
+double b5 	= 0.00213701253458295;
+double b6 	= 0.0258913824218897;
+double b7 	= -0.0793366829978452;
+double b8 	= -0.0571884441982908;
+double b9 	= 0.0236794828033771;
+double b10 	= -0.0284737562865976;
+double b11 	= 0.0293395708140309;
+
+double gain = 0.0;
+
+// Model-parameters for wheelbase
+double b1_1 	= 0.00315093866744196;
+double b2_1 	= -0.118601922953205;
+double b3_1 	= -0.00366367942635825;
+double b4_1 	= 0.00504865334373268;
+double b5_1 	= -0.000319371697885493;
+double b6_1 	= 0.117623420342880;
+double b7_1 	= 0.00351558170590245;
+double b8_1 	= 0.0214152977778184;
+double b9_1 	= 0.0157316373443995;
+double b10_1 	= -0.00219193979613172;
+double b11_1 	= -0.0654376106721517;
+
+double gain_1 = 0.0;
+double gain_r_l = 0.0;
 
 // encoder counts
 int current_encoder_count_left = 0;
@@ -67,9 +118,9 @@ int start_encoder_count_right = 0;
 // encoder counts per millimeter
 double left_encoder_counts_per_mm = 15.51200879;//15.1651811;//15.3846;//1.537;15.402469338;
 double right_encoder_counts_per_mm = 15.51200879;//15.1651811;//15.3846;//1.537;15.402469338;
+double encoder_counts_per_mm = 15.51200879;
 
-// test variable
-
+// counter to make the console outputs slower
 int counter = 0;
 int counter_max = 12;
 
@@ -86,8 +137,6 @@ double vx = 0.1;
 double vy = -0.1;
 double vtheta = 0.1;
 
-double speed = 0.0;
-
 double rotation_offset=0;
 
 // functions used to check signed integer wraparound
@@ -102,7 +151,7 @@ bool check_wrap() {
 // Update the left encoder count
 void update_encoder_left(int count)
 {
-    current_encoder_count_left = count * encoder_direction_left;
+    current_encoder_count_left += count * encoder_direction_left;
     if (start_encoder_count_left == 0) {
         start_encoder_count_left = current_encoder_count_left;
     }
@@ -111,8 +160,7 @@ void update_encoder_left(int count)
 // Update the right encoder count
 void update_encoder_right(int count)
 {
-    current_encoder_count_right =
-		count * encoder_direction_right;
+    current_encoder_count_right += count * encoder_direction_right;
     if (start_encoder_count_right == 0) {
         start_encoder_count_right = current_encoder_count_right;
     }
@@ -127,10 +175,10 @@ void encoderCallback(const phidgets::encoder_params::ConstPtr& ptr)
     if (initialised) {
         phidgets::encoder_params e = *ptr;
         if (e.index == encoder_index_left) {
-            update_encoder_left(e.count);
+            update_encoder_left(e.count_change);
         }
         if (e.index == encoder_index_right) {
-            update_encoder_right(e.count);
+            update_encoder_right(e.count_change);
         }
 
     }
@@ -175,6 +223,21 @@ void update_velocities(
 			current_encoder_count_left;
         int curr_encoder_count_right =
 			current_encoder_count_right;
+        // Model for encoder_counts_per_mm
+        gain = b1+b2*scale_S+b3*scale_L+b4*scale_P+b5*scale_S*scale_S+b6*scale_L*scale_L+b7*scale_P*scale_P+b8*scale_S*scale_L+b9*scale_S*scale_P+b10*scale_L*scale_P+b11*scale_S*scale_L*scale_P;
+        gain = 1-gain/100;
+
+        // Model to weight the right and the left wheel
+        gain_r_l = b1_1+b2_1*scale_L/2+b3_1*scale_P/2+b4_1*scale_R+b5_1*scale_L/2*scale_P/2+b6_1*scale_L/2*scale_R+b7_1*scale_P/2*scale_R;
+
+        // set the encoder counts per mm
+        left_encoder_counts_per_mm = (1-gain_r_l)*gain*encoder_counts_per_mm;
+		right_encoder_counts_per_mm = (1+gain_r_l)*gain*encoder_counts_per_mm;
+
+		// Model for the wheelbase
+		gain_1 =1+(b8_1+b9_1*scale_L/2+b10_1*scale_P/2+b11_1*scale_R);
+		wheelbase = wheelbase_mm*gain_1;
+
         double cos_current = cos(theta);
         double sin_current = sin(theta);
 
@@ -197,7 +260,7 @@ void update_velocities(
 		double dist_center = (dist_right_mm + dist_left_mm)/2;
 		double right_left = dist_right_mm - dist_left_mm;
 
-		double fraction = right_left / wheelbase_mm;
+		double fraction = right_left / wheelbase;
 
 		const double mm_to_m = 1.0 / 1000;
 
@@ -207,7 +270,7 @@ void update_velocities(
 			fraction = 0;
 		}
 		else{
-			double a = wheelbase_mm * (dist_right_mm + dist_left_mm) * 0.5 / right_left;
+			double a = wheelbase * (dist_right_mm + dist_left_mm) * 0.5 / right_left;
 			vx = a * (sin(fraction + theta) - sin_current) * mm_to_m;
 			vy = -a * (cos(fraction + theta) - cos_current) * mm_to_m;
 		}
@@ -215,7 +278,7 @@ void update_velocities(
 		winkel = theta*180/3.1415926;
 
 		if (counter>=counter_max){
-			ROS_INFO("\n Position (m) x:%.3f y:%.3f \n Orientierung: %.3f",
+			ROS_INFO("\n Position (m) x:%.3f y:%.3f Winkel: %.3f c_mm:%.6f",
 			 (float)x, (float)y, (float)winkel);
 			counter = 0;
 		}
