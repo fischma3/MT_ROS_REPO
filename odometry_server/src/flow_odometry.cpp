@@ -24,12 +24,17 @@ double dy_cam = 0.0;
 double dist_center = 0.0;
 
 // camera position
-double dist_cam = 0.713; // cam behind center in m
+double dist_cam = 1.0; // camera in front of center in m
 
 // velocity estimate
 double vx = 0.0;
 double vy = -0.0;
 double vtheta = 0.0;
+
+// test variable
+
+int counter = 0;
+int counter_max = 5;
 
 ros::Time current_time, last_time;
 
@@ -57,14 +62,14 @@ void px_comm_Callback(const px_comm::OpticalFlow::ConstPtr& msg)
 	double sin_current = sin(theta);
 
 	// camera position change
-	dx_cam = msg->velocity_x*dt;
-	dy_cam = msg->velocity_y*dt;
+	dx_cam = msg->velocity_x*dt*1.0175;
+	dy_cam = msg->velocity_y*dt*1.0175;
 
 	// angle change of the vehicle
-	dtheta = -atan(dx_cam/(dist_cam-dy_cam));
+	dtheta = atan(-dy_cam/(dist_cam+dx_cam));
 
 	// position change of the vehicle
-	dist_center = dist_cam-sqrt(pow(dist_cam-dy_cam,2)+pow(dx_cam,2));
+	dist_center = sqrt(pow(dist_cam+dx_cam,2)+pow(-dy_cam,2))-dist_cam;
 	dx = dist_center*cos_current;
 	dy = dist_center*sin_current;
 
@@ -81,8 +86,14 @@ void px_comm_Callback(const px_comm::OpticalFlow::ConstPtr& msg)
 	// angle in degrees
 	theta_degree = theta*180/3.1415926;
 
-	ROS_INFO("\n Position (m) x:%.3f y:%.3f winkel:%.6f quality:%.3f vx:%.3f vy:%.3f",
-				 (float)x, (float)y, (float)theta_degree, (float)msg->quality, (float)vx, (float)vy);
+	if (counter>=counter_max){
+		ROS_INFO("\n Flow Odometra \n Position (m) x:%.3f y:%.3f Winkel: %.3f quality:%.3f freq:%.3f",
+		 (float)x, (float)y, (float)theta_degree, (float)msg->quality, (float)(1/dt));
+		counter = 0;
+	}
+	else{
+		counter++;
+	}
 }
 
 /*!
@@ -96,11 +107,11 @@ bool subscribe_to_px4_node()
     ros::NodeHandle n;
     ros::NodeHandle nh("~");
     std::string topic_path = "px4flow/";
-    //nh.getParam("topic_path", topic_path);
+    nh.getParam("topic_path", topic_path);
     std::string px4_flow_name = "/opt_flow";
-    //nh.getParam("px4_flow_name", px4_flow_name);
+    nh.getParam("px4_flow_name", px4_flow_name);
     std::string px4_flow_topic_base = topic_path + px4_flow_name;
-    //nh.getParam("px4_topic", px4_flow_topic_base);
+    nh.getParam("px4_topic", px4_flow_topic_base);
 
     // get the topic name
     std::string px4_flow_topic = px4_flow_topic_base;
