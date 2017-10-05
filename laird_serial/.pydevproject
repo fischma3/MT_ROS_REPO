@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?eclipse-pydev version="1.0"?>
+
+<pydev_project>
+<pydev_property name="org.python.pydev.PYTHON_PROJECT_INTERPRETER">Default</pydev_property>
+<pydev_property name="org.python.pydev.PYTHON_PROJECT_VERSION">python 2.6</pydev_property>
+<pydev_pathproperty name="org.python.pydev.PROJECT_EXTERNAL_SOURCE_PATH">
+<path>/home/mario/catkin_ws/src/laird_serial/src</path>
+<path>/home/mario/catkin_ws/src/laird_serial/lib</path>
+<path>/opt/ros/kinetic/share/mk</path>
+<path>/home/mario/catkin_ws/devel/lib/python2.7/dist-packages</path>
+<path>/opt/ros/kinetic/lib/python2.7/dist-packages</path>
+<path>/usr/lib/python2.7</path>
+<path>/usr/lib/python2.7/plat-x86_64-linux-gnu</path>
+<path>/usr/lib/python2.7/lib-tk</path>
+<path>/usr/lib/python2.7/lib-dynload</path>
+<path>/usr/local/lib/python2.7/dist-packages</path>
+<path>/usr/lib/python2.7/dist-packages</path>
+<path>/usr/lib/python2.7/dist-packages/PILcompat</path>
+<path>/usr/lib/python2.7/dist-packages/gtk-2.0</path>
+</pydev_pathproperty>
+</pydev_project>
