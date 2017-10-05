@@ -1,0 +1,245 @@
+//******************************************************************************
+// Global Variable Declarations
+//******************************************************************************
+DIM rc, Enable
+// FSM
+DIM State
+// UART
+DIM instr$,token$,Data$,baude,pres$,temp$
+Data$ = "TEST DATEN"
+baude = 115200
+// Bluetooth
+DIM periphAddr$,periphAddr1$,advData$,sensor$,DataRate$,conHndl,atHndl,nOff,at$,autoread
+DataRate$ = "\88\13\00\00\64\00\00\88\13\00\00"
+nOff = 0
+autoread = 0
+//periphAddr1$ = "01F2EB685E2BE7"
+//******************************************************************************
+// Function and Subroutine definitions
+//******************************************************************************
+
+//******************************************************************************
+// Bluetooth
+//******************************************************************************
+FUNCTION Connect(periphAddr$)
+	//PRINT "\nConnecting to Peer Address: "; StrHexize$(periphAddr$)
+	rc=BleConnect(periphAddr$, 10000, 20000, 100000, 10000000)
+	IF rc ==0 THEN
+		State = 2
+	ELSE
+		PRINT "Error:";rc;"\n"
+		State = 1
+	ENDIF
+ENDFUNC 0
+
+FUNCTION Disonnect(conHndl)
+	rc=BleDisconnect(conHndl)
+	IF rc ==0 THEN
+		State = 1
+	ELSE
+		PRINT "Error:";rc;"\n"
+		State = 3
+	ENDIF
+ENDFUNC 0
+
+FUNCTION readSensor(conHndl,atHndl)
+	DO
+		rc=BleGattcRead(conHndl,atHndl,nOff)
+		IF rc==0 THEN
+			WAITEVENT
+		ENDIF
+	UNTIL autoread==0
+ENDFUNC 0
+
+FUNCTION writeSensor(conHndl,atHndl,DataRate$)
+	rc=BleGattcWrite(conHndl,atHndl,DataRate$)
+	IF rc==0 THEN
+		WAITEVENT
+	ENDIF
+ENDFUNC 0
+	
+'//This handler will be called in the event of a connection timeout
+FUNCTION HndlrConnTO()
+	PRINT "Fail\n"
+	State = 1
+ENDFUNC 1
+
+// Ble event handler
+FUNCTION HndlrBleMsg(nMsgId, nCtx)	
+	conHndl=nCtx
+	IF nMsgId == 1 THEN
+		PRINT conHndl;" disconnected\n"
+		State = 1
+		EXITFUNC 0
+	ELSEIF nMsgID==0 THEN
+		PRINT "conHndl ";conHndl;"\n"
+	State = 3
+	ENDIF
+ENDFUNC 1
+
+FUNCTION readData(at$)
+	DIM temp1$,temp2$,temp3$,temp4$
+	//print "Data:";at$;"\n"
+	at$ = StrHexize$(at$)
+	//print "Data:";at$;"\n"
+	temp1$ = STRSPLITLEFT$(at$,2)
+	temp2$ = STRSPLITLEFT$(at$,2)
+	temp$ = temp2$+temp1$
+	temp1$ = STRSPLITLEFT$(at$,2)
+	temp2$ = STRSPLITLEFT$(at$,2)
+	temp3$ = STRSPLITLEFT$(at$,2)
+	temp4$ = STRSPLITLEFT$(at$,2)
+	pres$ = temp4$+temp3$+temp2$+temp1$
+	//print "Data:";at$;"\n"
+	//print "Temperatur:";integer.d' temp$
+	//print "Pressure:";integer.d' pres$
+	//;"\n"
+	// dehextemp$ = STRDEHEXIZE$(temp$)
+	// print "Temperatur1:";dehextemp$;"\n"
+	// dehextemp$ = STRHEXIZE$(temp$)
+	// print "Temperatur2:";dehextemp$;"\n"
+	// dehextemp = StrValDec(temp$)
+	// print "Temperatur3:";dehextemp;"\n"
+	// dehextemp = STRHEX2BIN(temp$,0)
+	// print "Temperatur4:";dehextemp;"\n"
+	// print "Druck:";pres$;"\n"
+	// dehexpres$ = StrHexize$(pres$)
+	// print "Druck:";dehexpres$;"\n"
+ENDFUNC 1
+
+// EVATTRREAD event handler
+FUNCTION HandlerAttrRead(cHndl,aHndl,nSts) as integer
+	dim nOfst,nAhndl
+	if nSts == 0 then
+		rc = BleGattcReadData(cHndl,nAhndl,nOfst,at$)
+		if nAhndl==32 then
+			rc = readData(at$)
+			print "conHndl ";cHndl;" handle ";nAhndl;" Temp ";temp$;" Pres ";pres$;"\n"
+		else
+			print "conHndl ";cHndl;" handle ";nAhndl;" Data ";StrHexize$(at$);"\n"
+		endif
+	else
+		print "Failed to read attribute\n"
+	endif
+ENDFUNC 0
+
+// EVATTRWRITE event handler
+function HandlerAttrWrite(cHndl,aHndl,nSts) as integer
+	dim nOfst,nAhndl,at$
+	print "\nEVATTRWRITE "
+	print " cHndl=";cHndl
+	print " attrHndl=";aHndl
+	print " status=";integer.h' nSts
+	if nSts == 0 then
+		print "\nAttribute write OK"
+	else
+		print "\nFailed to write attribute"
+	endif
+endfunc 0
+//******************************************************************************
+// UART
+//******************************************************************************
+
+// Data arriving from UART
+FUNCTION HndlrUartRx()
+	TimerStart(0,2,0) //Allow time for data to reach rx buffer
+ENDFUNC 1
+
+// Timer after data arriving from UART
+FUNCTION HndlrTmr0()
+dim instrLength, tlen
+	instr$ = ""
+	instrLength=UartRead(instr$)
+	IF instrLength>0 THEN
+		tlen = ExtractStrToken(instr$,token$) //Get first token
+		SELECT State
+			CASE 1 // Wait to connect
+				IF StrCmp(token$,"connect")==0 THEN
+					//PRINT "\nConnecting..."
+					tlen = ExtractStrToken(instr$,token$) //Get first token
+					periphAddr$ = StrDehexize$(token$)
+					rc = Connect(periphAddr$)
+				ENDIF
+			CASE 2 // Connecting
+				//PRINT "\nWaiting for connection...\n"
+			CASE 3 // Connected	
+				IF StrCmp(token$,"disconnect")==0 THEN
+					tlen = ExtractStrToken(instr$,token$) //Get first token
+					conHndl = STRVALDEC(token$)
+					rc = Disonnect(conHndl)
+				ELSEIF StrCmp(token$,"read")==0 THEN
+					tlen = ExtractStrToken(instr$,token$) //Get first token
+					conHndl = STRVALDEC(token$)
+					tlen = ExtractStrToken(instr$,token$) //Get first token
+					atHndl = STRVALDEC(token$)
+					rc = readSensor(conHndl,atHndl)
+				ELSEIF StrCmp(token$,"pread")==0 THEN
+					tlen = ExtractStrToken(instr$,token$) //Get first token
+					conHndl = STRVALDEC(token$)
+					tlen = ExtractStrToken(instr$,token$) //Get first token
+					atHndl = STRVALDEC(token$)
+					autoread = 1
+					rc = readSensor(conHndl,atHndl)
+				ELSEIF StrCmp(token$,"stop")==0 THEN
+					autoread = 0
+				ELSEIF StrCmp(token$,"write")==0 THEN
+					tlen = ExtractStrToken(instr$,token$) //Get first token
+					conHndl = STRVALDEC(token$)
+					tlen = ExtractStrToken(instr$,token$) //Get first token
+					atHndl = STRVALDEC(token$)
+					tlen = ExtractStrToken(instr$,token$) //Get first token
+					//DataRate$ = STRVALDEC(token$)
+					rc = writeSensor(conHndl,atHndl,DataRate$)
+				ENDIF
+			CASE ELSE
+				PRINT "Error"
+		ENDSELECT
+		IF StrCmp(token$,"exit")==0 THEN
+			PRINT "\nexit = true"
+			Enable = 0
+			EXITFUNC 0
+		ELSEIF StrCmp(token$,"state")==0 THEN
+			PRINT "state =";state;"\n"
+		ENDIF
+	ENDIF
+	UartFlush(01)
+ENDFUNC 0
+
+//******************************************************************************
+// Equivalent to main() in C
+//******************************************************************************
+// UART
+ONEVENT EVUARTRX 			CALL HndlrUartRx
+ONEVENT EVTMR0 				CALL HndlrTmr0
+// Bluetooth
+ONEVENT EVBLE_CONN_TIMEOUT CALL HndlrConnTO
+ONEVENT EVBLEMSG 		   CALL HndlrBleMsg
+ONEVENT EVATTRREAD 		   CALL HandlerAttrRead
+OnEvent EVATTRWRITE 	   call HandlerAttrWrite
+
+// Init
+	State = 1
+	Enable = 1
+	// Close UART befor opening, in case of already open
+	UartClose()
+	// Open UART, odd parity
+	rc = UartOpen(baude,0,0,"CN81H") //open as DTE at 300 baudrate, odd parity
+	//PRINT "Open UART with Baude:";baude;"\n\n"
+	rc = BleGATTcOpen(128,0)
+	//PRINT "\nopen GATT client RC:";rc
+
+// Main FSM
+DO
+	SELECT State
+		CASE 1 // Wait to connect
+			//PRINT "\nState: Wait to connect\n"
+		CASE 2 // Connecting
+			//PRINT "\nState: Connecting\n"
+		CASE 3 // Connected	
+			//PRINT "\nState: Connected\n"
+		CASE ELSE
+			//PRINT "\nState: Error\n"
+	ENDSELECT
+	WAITEVENT
+UNTIL Enable == 0
+

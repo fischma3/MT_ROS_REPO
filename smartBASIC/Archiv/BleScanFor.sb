@@ -1,0 +1,37 @@
+DIM rc, conHndl, uHndl, periphAddr$
+DIM sensor AS STRING
+
+'//Scan for 20 seconds with no filtering
+rc = BleScanStart(20000, 0)
+sensor = "TESS 5600"
+IF rc==0 THEN
+    PRINT "\nScanning"
+ELSE
+    PRINT "\nError: "; INTEGER.H'rc
+ENDIF
+
+'//This handler will be called when scanning times out
+FUNCTION HndlrScanTO()
+    PRINT "\nScan timeout no Sensor found"
+ENDFUNC 0
+	
+'//This handler will be called when an advert is received
+FUNCTION HndlrAdvRpt()
+    DIM advData$, nDiscarded, nRssi
+    
+    '//Read all cached advert reports
+    rc=BleScanGetAdvReport(periphAddr$, advData$, nDiscarded, nRssi)
+	IF STRPOS(advData$,sensor,0)>0 THEN
+		PRINT "\n\nSensor ";sensor;
+		PRINT "\nPeer Address: "; StrHexize$(periphAddr$)
+		PRINT "\nAdvert Data: ";advData$
+		PRINT "\nRSSI: ";nRssi
+	ELSE
+		PRINT "."
+	ENDIF	
+ENDFUNC 1
+ 
+ONEVENT EVBLE_SCAN_TIMEOUT CALL HndlrScanTO
+ONEVENT EVBLE_ADV_REPORT   CALL HndlrAdvRpt
+
+WAITEVENT
