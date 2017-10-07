@@ -11,7 +11,7 @@ sensors = 0
 DataRate$ = "\E8\03\00\00\64\00\00\88\13\00\00"
 autoread = 0
 //Sensor 1 = "01F2EB685E2BE7"
-//Sensor 2 = "XXXXXXXXXXXXXX"
+//Sensor 2 = "01F7B34480DDC8"
 
 //******************************************************************************
 // Function and Subroutine definitions
@@ -45,11 +45,13 @@ FUNCTION readSensor(conHndl,atHndl)
 		DO
 			SELECT sensors
 				CASE 1
+					//PRINT "Sensors Case 1, conHndl_1:";conHndl_1;"\n"
 					rc=BleGattcRead(conHndl_1,32,0)
 					IF rc==0 THEN
 						WAITEVENT
 					ENDIF
 				CASE 2
+					//PRINT "Sensors Case 2, conHndl_1:";conHndl_1;", conHndl_2:";conHndl_2;"\n"
 					rc=BleGattcRead(conHndl_1,32,0)
 					IF rc==0 THEN
 						WAITEVENT
@@ -115,7 +117,7 @@ FUNCTION HndlrBleMsg(nMsgId, nCtx)
 		sensors = sensors+1
 		IF sensors==1 THEN
 			conHndl_1 = conHndl
-		ELSEIF sensors==1 THEN
+		ELSEIF sensors==2 THEN
 			conHndl_2 = conHndl
 		ENDIF
 	ELSEIF nMsgID==1 THEN

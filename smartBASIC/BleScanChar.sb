@@ -1,7 +1,9 @@
 DIM rc, conHndl, uHndl, periphAddr$, uuid$, sAttr, eAttr, cValAttr
 DIM sensor AS STRING
 
-periphAddr$ = "\01\F2\EB\68\5E\2B\E7"
+//periphAddr$ = "\01\F2\EB\68\5E\2B\E7"
+periphAddr$ = "\01\F7\B3\44\80\DD\C8"
+
 
 rc = BleGATTcOpen(0,0)
 PRINT "\nopen GATT client"

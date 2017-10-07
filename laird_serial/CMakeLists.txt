@@ -24,6 +24,9 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 rosbuild_add_executable(serial_node src/serial_node.cpp)
 target_link_libraries(serial_node ${catkin_LIBRARIES})
 
+rosbuild_add_executable(p_sens_node src/p_sens_node.cpp)
+target_link_libraries(p_sens_node ${catkin_LIBRARIES})
+
 #rosbuild_add_executable(serial_py scripts/serial_py.py)
 #target_link_libraries(serial_py ${catkin_LIBRARIES})
 
