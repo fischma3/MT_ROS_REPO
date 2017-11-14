@@ -1,0 +1,55 @@
+<launch>
+    <!-- phidgets high speed encoder -->
+    <!--<node name="high_speed_encoder" pkg="phidgets_motion_control" type="high_speed_encoder"     respawn="false" output="log"/> -->
+
+    <!-- Odometry calculation -->
+    <!-- <node name="odometry" pkg="phidgets_motion_control" type="odometry" respawn="false" output="screen"/>-->
+
+    <!-- Bluetooth pressure sensore interface -->
+    <node pkg="bt_p_sensor" type="p_sens_node" name="p_sens_node" respawn="true" output="screen">
+	<!-- serial_port -->
+        <param name="port" value="/dev/ttyUSB0" />
+        <!-- baudrate-->
+        <param name="baudrate" value= "115200" />
+	<!-- Number of sensors-->
+        <param name="n_sensor" value= "1" />
+	<!-- MAC Address Sensor 1-->
+        <param name="sensor_1" value="01F2EB685E2BE7" />
+	<!-- MAC Address Sensor 2-->
+        <param name="sensor_2" value="01F7B34480DDC8" />
+	<!-- Filtering the Output signals-->
+        <param name="filter" value="0" />
+	<!-- Filtering Coefficitent for Temperature-->
+        <param name="alpha_T" value="0.1" />
+	<!-- Filtering Coefficitent for Pressure-->
+        <param name="alpha_p" value="0.1" />
+    </node>
+
+    <node name="wheel_mod" pkg="wheel_mod" type="wheel_mod_node" respawn="false" output="screen">
+	<!-- Calibrate the wheel Model -->
+          <param name="calibrate" value="0" />
+	<!-- Calibrate the wheel Model over N-Samples -->
+          <param name="samples" value="10" />
+	<!-- Sensor 1 -->        
+	<!-- wheel load without additional loading [Kg] -->
+          <param name="m0_1" value="0" />
+        <!-- wheel pressure without additional loading [Pa]-->
+          <param name="p0_1" value= "350000" />
+	<!-- wheel temperature at p0_1 [K]-->
+          <param name="T0_1" value= "293.15" />
+	<!-- wheel radius without additional loading [m]-->
+          <param name="r0_1" value="0.16" />
+	<!-- Sensor 2 -->        
+	<!-- wheel load without additional loading [Kg] -->
+          <param name="m0_2" value="66" />
+        <!-- wheel pressure without additional loading [Pa]-->
+          <param name="p0_2" value= "350000" />
+	<!-- wheel temperature at p0_1 [K]-->
+          <param name="T0_2" value= "293.15" />
+	<!-- wheel radius without additional loading [m]-->
+          <param name="r0_2" value="0.153" />
+    </node>
+
+</launch>
+
+

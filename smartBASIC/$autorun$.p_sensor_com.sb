@@ -1,0 +1,382 @@
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// +++++                                                                      ++
+// +++++  			Software for the Laird BT900-US BT-Dongle		   	      ++
+// +++++  Communication between Serial-Port and two Wireless Pressure Gauges  ++
+// +++++                                                                      ++
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//
+// Autor:	M. Fischer
+// Date:	14.11.2017
+// 
+// Sensor:	Wireless Pressure Gauge "MEAS U5600" 
+//
+//******************************************************************************
+
+//******************************************************************************
+// Definitions
+//******************************************************************************
+
+// UART
+#define BAUDE_RATE		115200	
+
+// BLE
+#define CONNTIMEOUT		10000 		// Time that connection attempt lasts. [ms]
+#define MINCONNINT      20000		// Minimum connection interval. [us]
+#define MAXCONNINT      100000		// Maximum connection interval.[us]
+#define NSUPRTIMEOUT	10000000	// Supervision timeout for connection. [us]
+
+
+//******************************************************************************
+// Global Variable Declarations
+//******************************************************************************
+
+// General
+dim rc                			// Return code from function calls
+dim enable						// Enable of the app
+
+// Uart
+dim pressure$ 		 as string	// Air-Pressure of Wheel [0.1 PA]
+dim temperature$ 	 as string	// Air-Temperature of Wheel [0.01°C]
+dim keywords_in[9]   as string	// Keywords for incoming UART communication
+dim keywords_out[7]  as string	// Keywords for outgoing UART communication
+dim outStr$			 as string	// Output String
+
+// BLE
+dim sensor_1					// Connection of sensor 1
+dim sensor_2					// Connection of sensor 2
+dim last_sens					// Last sensor Message send
+dim conHndl_1					// Connection Handle of sensor 1
+dim conHndl_2					// Connection Handle of sensor 2
+dim autoread					// Autoread of Data ON/OFF
+dim outData$ 		 as string  // DataRate of the sensor
+
+//******************************************************************************
+// Initialisse Global Variable
+//******************************************************************************
+
+sensor_1 		= 0				// Sensor 1 not connected
+sensor_2 		= 0				// Sensor 2 not connected
+last_sens		= 0				// No Msgs sended jet
+autoread 		= 0				// Autoread of Data OFF
+
+// Keywords for incomming communication
+keywords_in[0]	= "connect"
+keywords_in[1]	= "disconnect"
+keywords_in[2]	= "read"
+keywords_in[3]	= "aread"
+keywords_in[4]	= "stop"
+keywords_in[5]	= "write"
+keywords_in[6]	= "exit"
+keywords_in[7]	= "sensors"
+keywords_in[8]	= "ack"
+
+// Keywords for outgoing communication
+keywords_out[0]	= "error "
+keywords_out[1]	= "fail "
+keywords_out[2]	= "connection "
+keywords_out[3]	= "write "
+keywords_out[4]	= "read "
+keywords_out[5]	= "sensors "
+keywords_out[6]	= "exit "
+
+
+//******************************************************************************
+// Function and Subroutine definitions
+//******************************************************************************
+
+//==============================================================================
+// Connect with BLE to periphAddr$
+//==============================================================================
+FUNCTION Connect(periphAddr$)
+	rc=BleConnect(periphAddr$, CONNTIMEOUT, MINCONNINT, MAXCONNINT, NSUPRTIMEOUT)
+	IF rc ==0 THEN
+	ELSE
+		PRINT keywords_out[0];rc;" BleConnect(";periphAddr$;")\n"
+	ENDIF
+ENDFUNC 0
+
+//==============================================================================
+// Disconnect BLE Connection to conHndl
+//==============================================================================
+FUNCTION Disonnect(conHndl)
+	rc=BleDisconnect(conHndl)
+	IF rc ==0 THEN
+	ELSE
+		PRINT keywords_out[0];rc;" BleDisconnect(";conHndl;")\n"
+	ENDIF
+ENDFUNC 0
+
+//==============================================================================
+// Read Data of atHndl from conHndl
+//==============================================================================
+FUNCTION readSensor(conHndl,atHndl)
+	rc=BleGattcRead(conHndl,atHndl,0)
+	IF rc==0 THEN
+		WAITEVENT
+	ENDIF
+ENDFUNC 0
+
+//==============================================================================
+// Auto Read Data of atHndl from all connected conHndl
+//==============================================================================
+FUNCTION autoReadSensor(atHndl)
+	IF ((sensor_1==1)&&(sensor_2==0))||((sensor_1==1)&&(sensor_2==1)&&(last_sens!=1)) THEN
+		rc=BleGattcRead(conHndl_1,atHndl,0)
+		IF rc==0 THEN
+			WAITEVENT
+		ENDIF
+		last_sens = 1
+	ELSEIF ((sensor_1==0)&&(sensor_2==1))||((sensor_1==1)&&(sensor_2==1)&&(last_sens==1)) THEN
+		rc=BleGattcRead(conHndl_2,atHndl,0)
+		IF rc==0 THEN
+			WAITEVENT
+		ENDIF
+		last_sens = 2
+	ELSE
+		autoread = 0
+		last_sens = 0
+	ENDIF	
+ENDFUNC 0
+
+//==============================================================================
+// Write outData$ to atHndl of conHndl
+//==============================================================================
+FUNCTION writeSensor(conHndl,atHndl,outData$)
+	rc=BleGattcWrite(conHndl,atHndl,outData$)
+	IF rc==0 THEN
+		WAITEVENT
+	ENDIF
+ENDFUNC 0
+
+//==============================================================================
+// Change LSB/MSB of Temperature and Pressure for the Data Characteristics
+//==============================================================================
+FUNCTION readData(at$)
+	DIM temp1$,temp2$,temp3$,temp4$
+	// Temperature
+	at$ = StrHexize$(at$)
+	temp1$ = STRSPLITLEFT$(at$,2)
+	temp2$ = STRSPLITLEFT$(at$,2)
+	temperature$ = temp2$+temp1$
+	// Pressure
+	temp1$ = STRSPLITLEFT$(at$,2)
+	temp2$ = STRSPLITLEFT$(at$,2)
+	temp3$ = STRSPLITLEFT$(at$,2)
+	temp4$ = STRSPLITLEFT$(at$,2)
+	pressure$ = temp4$+temp3$+temp2$+temp1$
+ENDFUNC 1
+
+//******************************************************************************
+// Handler definitions
+//******************************************************************************
+
+//==============================================================================
+// This handler is called when BLE conenction timed out (EVBLE_CONN_TIMEOUT)
+//==============================================================================
+FUNCTION HndlrConnTO()
+	PRINT keywords_out[1];"EVBLE_CONN_TIMEOUT\n"
+ENDFUNC 1
+
+//==============================================================================
+// This handler is called when a BLE event occurred (EVBLEMSG)
+//==============================================================================
+FUNCTION HndlrBleMsg(nMsgId, nCtx)
+	// nMsgId = 0: A BLE connection is established, nCtx = conHndl
+	IF nMsgId == 0 THEN
+		PRINT keywords_out[2];nCtx;" TRUE\n"
+		IF sensor_1==2 THEN
+			// Save conHndl if sensor 1
+			conHndl_1 = nCtx
+			sensor_1 = 1
+		ELSEIF sensor_2==2 THEN
+			// Save conHndl if sensor 2
+			conHndl_2 = nCtx
+			sensor_2 = 1
+		ENDIF
+	// nMsgId = 0: A BLE disconnection event, nCtx = conHndl
+	ELSEIF nMsgID==1 THEN
+		PRINT keywords_out[2];nCtx;" FALSE\n"
+		IF (nCtx==conHndl_1) THEN // Sensor 1 disconnect
+			autoread = 0
+			conHndl_1 = 0
+			sensor_1 = 0
+		ELSEIF (nCtx==conHndl_2) THEN // Sensor 2 disconnect
+			autoread = 0
+			conHndl_2 = 0
+			sensor_2 = 0		
+		ENDIF
+		EXITFUNC 0
+	ENDIF
+ENDFUNC 1
+
+//==============================================================================
+// This handler is called when BleGattcRead() returns a success (EVATTRREAD)
+//==============================================================================
+FUNCTION HandlerAttrRead(cHndl,aHndl,nSts) as integer
+	dim at$, nOfst // The attribute data which was read is supplied in this parameter.
+	if nSts == 0 then
+		rc = BleGattcReadData(cHndl,aHndl,nOfst,at$)
+		// If the attribute Handler is 32 edit the MSB/LSB of the Data
+		if aHndl==32 then
+			rc = readData(at$)
+			print keywords_out[4];cHndl;" ";aHndl;" ";temperature$;" ";pressure$;"\n"
+		// If the attribute Handler not 32 return the raw Data
+		else
+			print keywords_out[4];cHndl;" ";aHndl;" ";StrHexize$(at$);"\n"
+		endif
+	else
+		print keywords_out[0];nSts;" EVATTRREAD\n"
+	endif
+ENDFUNC 0
+
+//==============================================================================
+// This handler is called when BleGattcWrite() returns a success. (EVATTRWRITE)
+//==============================================================================
+function HandlerAttrWrite(cHndl,aHndl,nSts) as integer
+	if nSts == 0 then
+		print keywords_out[3];cHndl;" ";aHndl;" ";outData$;"\n"
+	else
+		print keywords_out[0];nSts;" EVATTRWRITE\n"
+	endif
+endfunc 0
+
+//==============================================================================
+// This handler is called when Data arriving from UART (EVUARTRX)
+//==============================================================================
+FUNCTION HndlrUartRx()
+	// Start Timer 0 to allow the data to reach rx buffer
+	TimerStart(0,2,0)
+ENDFUNC 1
+
+//==============================================================================
+// This handler is called when TIMER 0 expires
+//==============================================================================
+FUNCTION HndlrTmr0()
+dim strLength, instr$, token$, periphAddr$, atHndl, conHndl
+	instr$ = ""
+	strLength=UartRead(instr$)
+	IF strLength>0 THEN
+		//Get first token and compare to keywords_in
+		strLength = ExtractStrToken(instr$,token$)
+		// keywords_in[0] = connect
+		IF StrCmp(token$,keywords_in[0])==0 THEN
+			autoread = 0
+			// Get second token
+			strLength = ExtractStrToken(instr$,token$)
+			IF STRVALDEC(token$)==1 THEN
+				sensor_1 = 2
+			ELSEIF STRVALDEC(token$)==2 THEN
+				sensor_2 = 2
+			ENDIF
+			strLength = ExtractStrToken(instr$,token$)
+			periphAddr$ = StrDehexize$(token$)
+			rc = Connect(periphAddr$)
+		// keywords_in[1] = disconnect
+		ELSEIF StrCmp(token$,keywords_in[1])==0 THEN
+			autoread = 0
+			// Get second token
+			strLength = ExtractStrToken(instr$,token$)
+			conHndl = STRVALDEC(token$)
+			rc = Disonnect(conHndl)
+		// keywords_in[2] = read
+		ELSEIF StrCmp(token$,keywords_in[2])==0 THEN
+			autoread = 0
+			// Get second token
+			strLength = ExtractStrToken(instr$,token$)
+			conHndl = STRVALDEC(token$)
+			// Get third token
+			strLength = ExtractStrToken(instr$,token$)
+			atHndl = STRVALDEC(token$)
+			rc = readSensor(conHndl,atHndl)
+		// keywords_in[3] = pread
+		ELSEIF StrCmp(token$,keywords_in[3])==0 THEN
+			// Get second token
+			strLength = ExtractStrToken(instr$,token$)
+			atHndl = STRVALDEC(token$)
+			autoread = 1
+			rc = autoReadSensor(atHndl)
+		// keywords_in[4] = stop
+		ELSEIF StrCmp(token$,keywords_in[4])==0 THEN
+			autoread = 0
+		// keywords_in[5] = write
+		ELSEIF StrCmp(token$,keywords_in[5])==0 THEN
+			autoread = 0
+			// Get second token
+			strLength = ExtractStrToken(instr$,token$)
+			conHndl = STRVALDEC(token$)
+			// Get third token
+			strLength = ExtractStrToken(instr$,token$)
+			atHndl = STRVALDEC(token$)
+			// Get forth token
+			strLength = ExtractStrToken(instr$,token$)
+			outData$ = token$
+			rc = writeSensor(conHndl,atHndl,outData$)
+		// keywords_in[6] = exit
+		ELSEIF StrCmp(token$,keywords_in[6])==0 THEN
+			autoread = 0
+			PRINT keywords_out[6];"TRUE"
+			IF sensor_1==1 THEN
+				rc = Disonnect(conHndl_1)
+			ENDIF
+			IF sensor_2==1 THEN
+				rc = Disonnect(conHndl_2)
+			ENDIF
+			BleGattcClose()
+			UartClose()
+			Enable = 0
+			EXITFUNC 0
+		// keywords_in[7] = sensors
+		ELSEIF StrCmp(token$,keywords_in[7])==0 THEN
+			autoread = 0
+			PRINT keywords_out[5];sensor_1;" ";conHndl_1;" ";sensor_2;" ";conHndl_2;"\n"
+		// keywords_in[8] = ack
+		ELSEIF StrCmp(token$,keywords_in[8])==0 THEN
+			IF autoread==1 THEN
+				rc = autoReadSensor(atHndl)
+			ENDIF
+		ENDIF
+	ENDIF
+	UartFlush(01)
+ENDFUNC 0
+
+
+//******************************************************************************
+// Equivalent to main() in C
+//******************************************************************************
+
+//------------------------------------------------------------------------------
+// Enable synchronous event handlers
+//------------------------------------------------------------------------------
+
+// UART
+ONEVENT EVUARTRX 			CALL HndlrUartRx
+ONEVENT EVTMR0 				CALL HndlrTmr0
+
+// Bluetooth
+ONEVENT EVBLE_CONN_TIMEOUT CALL HndlrConnTO
+ONEVENT EVBLEMSG 		   CALL HndlrBleMsg
+ONEVENT EVATTRREAD 		   CALL HandlerAttrRead
+OnEvent EVATTRWRITE 	   call HandlerAttrWrite
+
+//------------------------------------------------------------------------------
+// Initialise and then wait for events
+//------------------------------------------------------------------------------
+
+// Init
+enable = 1
+
+// Close UART befor opening, in case of already open
+UartClose()
+
+// Open UART, odd parity
+rc = UartOpen(BAUDE_RATE,0,0,"CN81H")
+
+// Open GATT client
+rc = BleGATTcOpen(0,0)
+
+//------------------------------------------------------------------------------
+// Wait for a synchronous event till enable is 0
+//------------------------------------------------------------------------------
+DO
+	WAITEVENT
+UNTIL enable == 0

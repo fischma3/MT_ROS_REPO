@@ -42,7 +42,8 @@ dim keywords_out[7]  as string	// Keywords for outgoing UART communication
 dim outStr$			 as string
 
 // BLE
-dim sensors						// Number of sensors connected
+dim sensor_1					// Connection of sensor 1
+dim sensor_2					// Connection of sensor 2
 dim conHndl_1					// Connection Handle of sensor 1
 dim conHndl_2					// Connection Handle of sensor 2
 dim autoread					// Autoread of Data ON/OFF
@@ -52,7 +53,8 @@ dim outData$ 		 as string  // DataRate of the sensor
 // Initialisse Global Variable
 //******************************************************************************
 
-sensors 		= 0									  // Zero sensors connected
+sensor_1 		= 0									  // Sensor 1 not connected
+sensor_2 		= 0									  // Sensor 2 not connected
 autoread 		= 0									  // Autoread of Data OFF
 
 // Keywords for incomming communication
@@ -108,24 +110,21 @@ FUNCTION readSensor(conHndl,atHndl)
 	// If autoread is ON, read alternating Data from all the sensors
 	IF autoread==1 THEN
 		DO
-			SELECT sensors
-				CASE 1
-					rc=BleGattcRead(conHndl_1,atHndl,0)
-					IF rc==0 THEN
-						WAITEVENT
-					ENDIF
-				CASE 2
-					rc=BleGattcRead(conHndl_1,atHndl,0)
-					IF rc==0 THEN
-						WAITEVENT
-					ENDIF
-					rc=BleGattcRead(conHndl_2,atHndl,0)
-					IF rc==0 THEN
-						WAITEVENT
-					ENDIF
-				CASE ELSE
-					autoread = 0
-			ENDSELECT
+			IF sensor_1==1 THEN
+				rc=BleGattcRead(conHndl_1,atHndl,0)
+				IF rc==0 THEN
+					WAITEVENT
+				ENDIF
+			ENDIF
+			IF sensor_2==1 THEN
+				rc=BleGattcRead(conHndl_2,atHndl,0)
+				IF rc==0 THEN
+					WAITEVENT
+				ENDIF
+			ENDIF
+			IF (sensor_1==0)&&(sensor_2==0) THEN
+				autoread = 0
+			ENDIF
 		UNTIL autoread==0
 	// If autoread is OFF, read Data from atHndl of conHndl
 	ELSE
@@ -182,24 +181,24 @@ FUNCTION HndlrBleMsg(nMsgId, nCtx)
 	// nMsgId = 0: A BLE connection is established, nCtx = conHndl
 	IF nMsgId == 0 THEN
 		PRINT keywords_out[2];nCtx;" TRUE\n"
-		// Additional sensor connected
-		sensors = sensors+1
-		IF sensors==1 THEN
+		IF sensor_1==0 THEN
 			// Save conHndl if sensor 1
 			conHndl_1 = nCtx
-		ELSEIF sensors==2 THEN
+			sensor_1 = 1
+		ELSEIF sensor_2==0 THEN
 			// Save conHndl if sensor 2
 			conHndl_2 = nCtx
+			sensor_2 = 1
 		ENDIF
 	// nMsgId = 0: A BLE disconnection event, nCtx = conHndl
 	ELSEIF nMsgID==1 THEN
 		PRINT keywords_out[2];nCtx;" FALSE\n"
-		// One sensor disconnected
-		sensors = sensors-1
-		// When sensor 1 disconnect and sensor 2 still connect
-		IF (sensors==1)&&(nCtx==conHndl_1) THEN
-			// Change sensor 2 to sensor 1
-			conHndl_1 = conHndl_2
+		IF (nCtx==conHndl_1) THEN // Sensor 1 disconnect
+			conHndl_1 = 0
+			sensor_1 = 0
+		ELSEIF (nCtx==conHndl_2) THEN // Sensor 2 disconnect
+			conHndl_2 = 0
+			sensor_2 = 0		
 		ENDIF
 		EXITFUNC 0
 	ENDIF
@@ -300,27 +299,19 @@ dim strLength, instr$, token$, periphAddr$, atHndl, conHndl
 		// keywords_in[6] = exit
 		ELSEIF StrCmp(token$,keywords_in[6])==0 THEN
 			PRINT keywords_out[6];"TRUE"
-			SELECT sensors
-				CASE 1
-					rc = Disonnect(conHndl_1)
-				CASE 2
-					rc = Disonnect(conHndl_1)
-					rc = Disonnect(conHndl_2)
-				CASE ELSE
-			ENDSELECT
+			IF sensor_1==1 THEN
+				rc = Disonnect(conHndl_1)
+			ENDIF
+			IF sensor_2==1 THEN
+				rc = Disonnect(conHndl_2)
+			ENDIF
 			BleGattcClose()
 			UartClose()
 			Enable = 0
 			EXITFUNC 0
 		// keywords_in[7] = sensors
 		ELSEIF StrCmp(token$,keywords_in[7])==0 THEN
-			SELECT sensors
-				CASE 1
-					PRINT keywords_out[5];sensors;" ";conHndl_1;"\n"
-				CASE 2
-					PRINT keywords_out[5];sensors;" ";conHndl_1;" ";conHndl_2;"\n"
-				CASE ELSE
-					PRINT keywords_out[5];sensors;"\n"
+				PRINT keywords_out[5];sensor_1;" ";conHndl_1;" ";sensor_2;" ";conHndl_2;"\n"
 			ENDSELECT	
 		ENDIF
 	ENDIF

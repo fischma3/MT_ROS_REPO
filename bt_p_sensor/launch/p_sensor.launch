@@ -1,0 +1,25 @@
+<launch>
+    <!-- Machine settings. See http://www.ros.org/wiki/roslaunch/XML/machine -->
+    <machine name="local_alt" address="localhost" default="true" />
+    
+    <node pkg="bt_p_sensor" type="p_sens_node" name="p_sens_node" respawn="true" output="screen">
+	<!-- serial_port -->
+        <param name="port" value="/dev/ttyUSB0" />
+        <!-- baudrate-->
+        <param name="baudrate" value= "115200" />
+	<!-- Number of sensors-->
+        <param name="n_sensor" value= "2" />
+	<!-- MAC Address Sensor 1-->
+        <param name="sensor_1" value="01F7B34480DDC8" />
+	<!-- MAC Address Sensor 2-->
+        <param name="sensor_2" value="01F2EB685E2BE7" />
+	<!-- Filtering the Output signals-->
+        <param name="filter" value="0" />
+	<!-- Filtering Coefficitent for Temperature-->
+        <param name="alpha_T" value="0.1" />
+	<!-- Filtering Coefficitent for Pressure-->
+        <param name="alpha_p" value="0.1" />
+    </node>
+
+</launch>
+
